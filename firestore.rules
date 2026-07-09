@@ -1,0 +1,72 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isAdminOrManager() {
+      return isSignedIn() && userRole() in ['admin', 'manager'];
+    }
+
+    // Staff profiles: a user can read their own profile; only admins/managers
+    // can list or edit others. Creation/deletion of auth accounts happens
+    // through the backend (Firebase Admin SDK), which also writes this doc.
+    match /users/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdminOrManager());
+      allow write: if isAdminOrManager();
+    }
+
+    // Core business data: any signed-in staff member (cashier, manager, admin)
+    // can read and create day-to-day records. Deleting historical transactions
+    // is restricted to admins/managers to protect the audit trail.
+    match /customers/{docId} {
+      allow read, create, update: if isSignedIn();
+      allow delete: if isAdminOrManager();
+    }
+
+    match /currencyRates/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdminOrManager();
+    }
+
+    match /transactions/{docId} {
+      allow read, create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isAdminOrManager();
+    }
+
+    match /bankAccounts/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdminOrManager();
+    }
+
+    match /cashTransactions/{docId} {
+      allow read, create: if isSignedIn();
+      allow update, delete: if isAdminOrManager();
+    }
+
+    // Activity logs are an append-only audit trail: anyone signed in can add
+    // an entry, but only admins/managers can read or manage the log.
+    match /activityLogs/{docId} {
+      allow create: if isSignedIn();
+      allow read, update, delete: if isAdminOrManager();
+    }
+
+    match /settings/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdminOrManager();
+    }
+
+    match /reports/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdminOrManager();
+    }
+  }
+}
