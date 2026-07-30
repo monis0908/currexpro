@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { FiPlus, FiEdit2, FiTrash2, FiClock } from "react-icons/fi";
+import { FiPlus, FiEdit2, FiTrash2, FiClock, FiImage } from "react-icons/fi";
 import PageHeader from "../components/common/PageHeader";
 import Card from "../components/common/Card";
 import Button from "../components/common/Button";
@@ -14,26 +14,39 @@ import { transactionService } from "../services/transactionService";
 import { useDisclosure } from "../hooks/useDisclosure";
 import { useToast } from "../hooks/useToast";
 import { formatPKR } from "../utils/formatCurrency";
+import { uploadCustomerImage, validateCustomerImage } from "../services/cloudinaryService";
 
 export default function Customers() {
   const { data: customers } = useCollection(customerService, [], []);
   const { data: allTransactions } = useCollection(transactionService, [], []);
   const { isOpen, open, close } = useDisclosure();
   const { isOpen: historyOpen, open: openHistory, close: closeHistory } = useDisclosure();
+  const { isOpen: imageOpen, open: openImage, close: closeImage } = useDisclosure();
   const [editing, setEditing] = useState(null);
   const [historyCustomer, setHistoryCustomer] = useState(null);
+  const [imageCustomer, setImageCustomer] = useState(null);
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState("");
+  const [imageError, setImageError] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
   const toast = useToast();
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm();
 
   const startCreate = () => {
     setEditing(null);
+    setImageFile(null);
+    setImagePreview("");
+    setImageError("");
     reset({ name: "", phone: "", email: "", idNumber: "", address: "" });
     open();
   };
 
   const startEdit = (row) => {
     setEditing(row);
+    setImageFile(null);
+    setImagePreview(row.imageUrl || "");
+    setImageError("");
     reset(row);
     open();
   };
@@ -43,19 +56,43 @@ export default function Customers() {
     openHistory();
   };
 
+  const showImage = (row) => {
+    setImageCustomer(row);
+    openImage();
+  };
+
   const onSubmit = async (values) => {
     try {
+      setIsUploading(true);
+      let imageData = {};
+      if (imageFile) imageData = await uploadCustomerImage(imageFile);
+
       if (editing) {
-        await customerService.update(editing.id, values);
+        await customerService.update(editing.id, { ...values, ...imageData });
         toast.success("Customer updated.");
       } else {
-        await customerService.create(values);
+        await customerService.create({ ...values, ...imageData });
         toast.success("Customer added.");
       }
       close();
-    } catch {
-      toast.error("Could not save customer.");
+    } catch (error) {
+      toast.error(error.message || "Could not save customer.");
+    } finally {
+      setIsUploading(false);
     }
+  };
+
+  const handleImageChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const validationError = validateCustomerImage(file);
+    setImageError(validationError || "");
+    if (validationError) {
+      event.target.value = "";
+      return;
+    }
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
   };
 
   const remove = async (row) => {
@@ -65,6 +102,25 @@ export default function Customers() {
   };
 
   const columns = [
+    {
+      key: "imageUrl",
+      label: "Photo",
+      sortable: false,
+      render: (r) => r.imageUrl ? (
+        <button
+          type="button"
+          onClick={() => showImage(r)}
+          className="block rounded-full focus:outline-none focus:ring-2 focus:ring-accent/50"
+          title={`View ${r.name}'s photo`}
+        >
+          <img src={r.imageUrl} alt={`${r.name}'s profile`} className="h-9 w-9 rounded-full object-cover" />
+        </button>
+      ) : (
+        <div className="h-9 w-9 rounded-full bg-paper flex items-center justify-center text-muted">
+          <FiImage size={15} />
+        </div>
+      ),
+    },
     { key: "name", label: "Name" },
     { key: "phone", label: "Phone" },
     { key: "email", label: "Email" },
@@ -113,7 +169,29 @@ export default function Customers() {
           </div>
           <Input label="ID Number" {...register("idNumber")} />
           <Input label="Address" {...register("address")} />
-          <Button type="submit" className="mt-2">{editing ? "Save Changes" : "Add Customer"}</Button>
+          <div>
+            <span className="block text-sm font-medium text-ink mb-1.5">Customer Photo</span>
+            <div className="flex items-center gap-3">
+              {imagePreview ? (
+                <img src={imagePreview} alt="Customer preview" className="h-14 w-14 rounded-full object-cover border border-black/10" />
+              ) : (
+                <div className="h-14 w-14 rounded-full bg-paper flex items-center justify-center text-muted">
+                  <FiImage size={20} />
+                </div>
+              )}
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={handleImageChange}
+                className="block w-full text-sm text-muted file:mr-3 file:rounded-lg file:border-0 file:bg-paper file:px-3 file:py-2 file:text-sm file:font-medium file:text-ink hover:file:bg-black/5"
+              />
+            </div>
+            <p className="mt-1 text-xs text-muted">Optional. JPG, PNG, or WebP, up to 5 MB.</p>
+            {imageError && <p className="mt-1 text-xs text-coral">{imageError}</p>}
+          </div>
+          <Button type="submit" className="mt-2" disabled={isUploading}>
+            {isUploading ? "Uploading image..." : editing ? "Save Changes" : "Add Customer"}
+          </Button>
         </form>
       </Modal>
 
@@ -135,6 +213,16 @@ export default function Customers() {
               </div>
             ))}
           </div>
+        )}
+      </Modal>
+
+      <Modal isOpen={imageOpen} onClose={closeImage} title={`${imageCustomer?.name || "Customer"} Photo`} size="lg">
+        {imageCustomer?.imageUrl && (
+          <img
+            src={imageCustomer.imageUrl}
+            alt={`${imageCustomer.name}'s profile`}
+            className="mx-auto max-h-[70vh] w-auto max-w-full rounded-xl object-contain"
+          />
         )}
       </Modal>
     </div>
