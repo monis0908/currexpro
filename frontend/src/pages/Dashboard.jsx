@@ -74,7 +74,7 @@ export default function Dashboard() {
   return (
     <div>
       <PageHeader
-        title={`Welcome back, ${user?.name?.split(" ")[0] || "there"}`}
+        title={`kasia ho bhai, ${user?.name?.split(" ")[0] || "there"}`}
         description="Here's what's happening at your bureau today."
         actions={
           <>
