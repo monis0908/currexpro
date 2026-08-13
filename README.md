@@ -134,3 +134,18 @@ to a client I'd recommend:
   for any it's still missing).
 - Add file upload UI (customer ID scans, receipts) — Firebase Storage is
   wired up and ready, just needs an upload component.
+
+
+  ## 🚀 Current Progress
+
+- Core currency exchange features have been implemented.
+- The application is built with React and Vite.
+- Firebase Hosting is configured for deployment.
+- CI/CD workflow and project documentation are being improved.
+
+## 📌 Next Steps
+
+- Improve mobile responsiveness.
+- Add stronger form validation.
+- Expand testing coverage.
+- Improve reports and transaction summaries.
