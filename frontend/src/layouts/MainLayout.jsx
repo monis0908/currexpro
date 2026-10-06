@@ -3,6 +3,7 @@ import { Outlet } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import Sidebar from "../components/layout/Sidebar";
 import Navbar from "../components/layout/Navbar";
+import ChatWidget from "../components/chat/ChatWidget";
 
 export default function MainLayout() {
   const [collapsed, setCollapsed] = useState(false);
@@ -43,6 +44,9 @@ export default function MainLayout() {
           <Outlet />
         </main>
       </div>
+
+      {/* Floating AI Chat Assistant */}
+      <ChatWidget />
     </div>
   );
 }
